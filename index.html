@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DWI LMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
+<style>
+:root { --primary: #1e3a8a; --secondary: #3b82f6; --accent: #10b981; --bg-body: #f1f5f9; }
+body { font-family: 'Poppins', sans-serif; background-color: var(--bg-body); color: #1e293b; overflow-x: hidden; }
+body.exam-mode { overflow: hidden; user-select: none; }
+.hidden { display: none !important; }
+.auth-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 20px; }
+.auth-card { background: white; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); width: 100%; max-width: 420px; padding: 40px; }
+.wrapper { display: flex; width: 100%; align-items: stretch; position: relative; }
+#sidebar { min-width: 260px; max-width: 260px; background: #1e293b; color: #fff; min-height: 100vh; position: fixed; z-index: 1050; transition: all 0.3s; left: 0; top: 0; }
+#sidebar.active { left: -260px; }
+#content { width: 100%; margin-left: 260px; padding: 20px; transition: all 0.3s; min-height: 100vh; }
+#sidebar ul li a { padding: 15px 25px; display: block; color: #cbd5e1; text-decoration: none; border-left: 4px solid transparent; cursor: pointer; }
+#sidebar ul li a:hover, #sidebar ul li a.active { background: rgba(255,255,255,0.05); color: #fff; border-left-color: var(--accent); }
+@media (max-width: 768px) { #sidebar { left: -260px; } #sidebar.active { left: 0; } #content { margin-left: 0; padding: 15px; } .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1040; display: none; } .overlay.active { display: block; } }
+#view-exam { position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; z-index: 9999; background: #f8fafc; overflow: hidden; display: flex; flex-direction: column; }
+.exam-header { flex-shrink: 0; height: 60px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+.exam-container-split { flex-grow: 1; display: flex; gap: 20px; padding: 20px; overflow: hidden; }
+.q-main-area { flex: 3; background: white; border-radius: 12px; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; height: 100%; }
+#q-slides-container { flex-grow: 1; overflow-y: auto; }
+.q-nav-area { flex: 1; background: white; border-radius: 12px; padding: 20px; overflow-y: auto; height: 100%; }
+@media (max-width: 768px) { .exam-container-split { flex-direction: column-reverse; padding: 10px; gap: 10px; } .q-nav-area { flex: none; height: auto; max-height: 150px; } }
+.q-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin-top: 15px; }
+.q-nav-btn { aspect-ratio: 1; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; cursor: pointer; }
+.q-nav-btn.active-q { background: var(--secondary); color: white; }
+.q-nav-btn.answered { background: var(--accent); color: white; }
+.loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+.spinner { width: 50px; height: 50px; border: 5px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.user-profile-img { width: 40px; height: 40px; object-fit: cover; border-radius: 50%; border: 2px solid #fff; }
+.group-title { background: #e2e8f0; padding: 8px 15px; border-radius: 6px; font-weight: bold; margin: 20px 0 10px 0; color: #334155; }
+.print-kop { text-align: center; border-bottom: 3px solid #000; padding-bottom: 15px; margin-bottom: 25px; }
+.print-kop h2 { margin: 0; font-size: 24px; font-weight: bold; }
+.print-kop p { margin: 5px 0 0 0; font-size: 14px; }
+.q-text-preview img { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div id="loader" class="loader hidden"><div class="spinner"></div></div>
+<div id="sidebar-overlay" class="overlay" onclick="toggleSidebar()"></div>
+
+<div id="view-auth" class="auth-container">
+    <div class="auth-card">
+        <div class="text-center mb-4">
+            <div id="logo-container"><img src="https://via.placeholder.com/150" class="mb-3 rounded" width="150" alt="Logo"></div>
+            <h4 class="fw-bold text-primary">DWI LMS</h4>
+        </div>
+        <form id="frm-login" onsubmit="event.preventDefault(); handleLogin(); return false;">
+            <div class="form-floating mb-3"><input type="text" id="u-login" class="form-control" placeholder="User" required><label>Username</label></div>
+            <div class="form-floating mb-4 position-relative">
+                <input type="password" id="p-login" class="form-control" placeholder="Pass" required>
+                <label>Password</label>
+                <i class="fas fa-eye position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-muted fs-5" id="togglePassword"></i>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">MASUK SEKARANG</button>
+        </form>
+        <div class="text-center mt-4"><small class="text-muted">© Belajar Inovasi</small></div>
+    </div>
+</div>
+
+<div id="view-dashboard" class="hidden wrapper">
+    <nav id="sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between p-3 border-bottom border-secondary">
+            <div><h5 class="fw-bold mb-0 text-white">MENU UTAMA</h5><small class="text-white-50" id="user-role-disp"></small></div>
+        </div>
+        <ul class="list-unstyled components hidden" id="menu-admin">
+            <li><a onclick="loadPage('admin-home')" class="nav-link active"><i class="fas fa-home me-2"></i>Dashboard</a></li>
+            <li><a onclick="loadPage('admin-users')" class="nav-link"><i class="fas fa-users me-2"></i>Data Peserta</a></li>
+            <li><a onclick="loadPage('admin-classroom')" class="nav-link"><i class="fas fa-video me-2"></i>Materi & Kelas</a></li>
+            <li><a onclick="loadPage('admin-ujian')" class="nav-link"><i class="fas fa-calendar me-2"></i>Bank Soal</a></li>
+            <li><a onclick="loadPage('hasil-rekap')" class="nav-link"><i class="fas fa-chart-bar me-2"></i>Hasil Nilai</a></li>
+            <li><a onclick="loadPage('guru-monitoring')" class="nav-link"><i class="fas fa-tv me-2"></i>Monitoring</a></li>
+            <li><a onclick="handleSysAction('sysResetCache')" class="nav-link text-warning"><i class="fas fa-bolt me-2"></i>Reset Cache</a></li>
+        </ul>
+        <ul class="list-unstyled components hidden" id="menu-guru">
+            <li><a onclick="loadPage('admin-home')" class="nav-link active"><i class="fas fa-home me-2"></i>Dashboard</a></li>
+            <li><a onclick="loadPage('admin-users')" class="nav-link"><i class="fas fa-users me-2"></i>Data Peserta</a></li>
+            <li><a onclick="loadPage('admin-classroom')" class="nav-link"><i class="fas fa-video me-2"></i>Materi & Kelas</a></li>
+            <li><a onclick="loadPage('admin-ujian')" class="nav-link"><i class="fas fa-file-alt me-2"></i>Bank Soal</a></li>
+            <li><a onclick="loadPage('hasil-rekap')" class="nav-link"><i class="fas fa-poll me-2"></i>Hasil Nilai</a></li>
+            <li><a onclick="loadPage('guru-monitoring')" class="nav-link"><i class="fas fa-desktop me-2"></i>Live Monitor</a></li>
+        </ul>
+        <ul class="list-unstyled components hidden" id="menu-siswa">
+            <li><a onclick="loadPage('siswa-home')" class="nav-link active"><i class="fas fa-pencil-alt me-2"></i>Ujian Saya</a></li>
+            <li><a onclick="loadPage('siswa-classroom')" class="nav-link"><i class="fas fa-video me-2"></i>Ruang Kelas</a></li>
+        </ul>
+        <div class="p-3 mt-auto border-top border-secondary position-absolute bottom-0 w-100">
+            <div class="d-flex align-items-center mb-3 text-white">
+                <img src="https://via.placeholder.com/40" id="sidebar-user-img" class="user-profile-img me-2 bg-white">
+                <div>
+                    <span id="u-name-disp" class="fw-bold d-block text-truncate" style="max-width: 150px;">User</span>
+                    <a href="#" onclick="openProfileModal()" class="text-info small text-decoration-none"><i class="fas fa-cog me-1"></i>Pengaturan Akun</a>
+                </div>
+            </div>
+            <button onclick="handleLogout()" class="btn btn-danger btn-sm w-100">LOGOUT</button>
+        </div>
+    </nav>
+    <div id="content">
+        <nav class="navbar navbar-light bg-white rounded shadow-sm mb-4 p-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <button id="menuToggle" class="btn btn-light me-2 border" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+                <span class="navbar-brand mb-0 h1 fw-bold text-primary fs-5" id="page-title">DASHBOARD</span>
+            </div>
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="appRefresh()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        </nav>
+        <div id="content-area"></div>
+    </div>
+</div>
+
+<div id="view-exam" class="hidden">
+    <div class="exam-header">
+        <div class="d-flex align-items-center"><i class="fas fa-laptop-code text-primary me-2 fs-4"></i><div class="d-none d-md-block"><h6 class="fw-bold m-0" id="do-exam-title">Judul Ujian</h6></div></div>
+        <div class="d-flex align-items-center gap-2"><span class="badge bg-danger p-2 hidden" id="viol-badge">Pelanggaran: <span id="viol-disp">0</span>/3</span><div class="badge bg-dark fs-6 p-2 font-monospace"><i class="fas fa-clock me-1"></i><span id="timer-disp">00:00</span></div></div>
+    </div>
+    <div class="exam-container-split">
+        <div class="q-main-area"><div id="q-slides-container"></div><div class="d-flex justify-content-between mt-4 pt-3 border-top"><button class="btn btn-outline-secondary px-3" id="btn-prev" onclick="navSlide(-1)"><i class="fas fa-chevron-left"></i> Prev</button><button class="btn btn-primary px-3" id="btn-next" onclick="navSlide(1)">Next <i class="fas fa-chevron-right"></i></button><button class="btn btn-success px-4" id="btn-finish" onclick="submitExamButton(false)"><i class="fas fa-check-circle me-1"></i> KIRIM JAWABAN</button></div></div>
+        <div class="q-nav-area shadow-sm"><h6 class="fw-bold border-bottom pb-2 mb-2 small text-muted">NAVIGASI SOAL</h6><div id="nav-grid" class="q-grid"></div></div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalProfile" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-primary text-white"><h5 class="modal-title"><i class="fas fa-user-cog me-2"></i>Pengaturan Akun</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <form id="frm-profile" onsubmit="event.preventDefault(); saveProfile(); return false;">
+      <div class="text-center mb-3"><img src="https://via.placeholder.com/100" id="prof-preview" class="rounded-circle border border-3 border-primary" style="width:100px; height:100px; object-fit:cover;"><div class="mt-2"><label for="prof-foto" class="btn btn-sm btn-outline-primary"><i class="fas fa-camera me-1"></i>Ganti Foto</label><input type="file" id="prof-foto" class="d-none" accept="image/*" onchange="previewProfileImage(this)"><input type="hidden" id="prof-b64"></div></div>
+      <div class="mb-3"><label class="small fw-bold">Nama Lengkap</label><input type="text" id="prof-nama" class="form-control" required></div>
+      <div class="mb-4"><label class="small fw-bold">Password Baru <span class="text-muted fw-normal">(Kosongkan jika tetap)</span></label><div class="input-group"><input type="password" id="prof-pass" class="form-control"><button class="btn btn-outline-secondary" type="button" onclick="toggleProfPass()"><i class="fas fa-eye" id="icon-prof-pass"></i></button></div></div>
+      <button type="submit" class="btn btn-success w-100 fw-bold shadow-sm" id="btn-save-profile">SIMPAN PERUBAHAN</button>
+    </form>
+  </div></div></div>
+</div>
+
+<div class="modal fade" id="modalUser" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-success text-white"><h5 class="modal-title">User Editor</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">
+        <form id="frm-user" onsubmit="event.preventDefault(); saveUser(); return false;">
+            <input type="hidden" id="mu-id"><input type="text" id="mu-nama" class="form-control mb-2" placeholder="Nama Lengkap" required><input type="text" id="mu-user" class="form-control mb-2" placeholder="Username" required><input type="text" id="mu-pass" class="form-control mb-2" placeholder="Password" required>
+            <div class="row g-2 mb-2"><div class="col"><select id="mu-role" class="form-select"><option value="siswa">Siswa</option><option value="guru">Guru</option><option value="admin">Admin</option></select></div><div class="col"><input type="text" id="mu-kelas" class="form-control" placeholder="Kelas"></div></div>
+            <input type="text" id="mu-sekolah" class="form-control mb-2" placeholder="Sekolah (Opsional)"><button type="submit" class="btn btn-success w-100 mt-3">Simpan User</button>
+        </form>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="modalClassroom" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Manajemen Materi & Kelas</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">
+        <form id="frm-classroom" onsubmit="event.preventDefault(); saveClassroom(); return false;">
+            <input type="hidden" id="cls-id" name="classroomId">
+            <div class="mb-3"><label class="small fw-bold">Judul Materi / Sesi</label><div class="input-group"><input type="text" name="judul" id="cls-judul" class="form-control" required><button type="button" class="btn btn-outline-info" onclick="runAutoGenerateMateri()"><i class="fas fa-magic"></i> Generate</button></div></div>
+            <div class="mb-3"><label class="small fw-bold">Deskripsi Tambahan</label><textarea name="deskripsi" id="cls-deskripsi" class="form-control" rows="6"></textarea></div>
+            <div class="mb-3"><label class="small fw-bold">Link Video (YouTube)</label><input type="url" name="linkVideo" id="cls-video" class="form-control"></div>
+            <div class="mb-3"><label class="small fw-bold">Link Video Conference (Meet/Zoom)</label><input type="url" name="linkMeet" id="cls-meet" class="form-control"></div>
+            <div class="mb-4"><label class="small fw-bold">Target Kelas</label><input type="text" name="targetKelas" id="cls-kelas" class="form-control" required></div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold">SIMPAN MATERI</button>
+        </form>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="modalExam" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Konfigurasi Ujian</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body">
+        <form id="frm-exam" onsubmit="event.preventDefault(); saveExam(); return false;">
+            <input type="hidden" id="ex-id" name="examId">
+            <div class="mb-3"><label class="small fw-bold">Judul Ujian</label><input type="text" name="judul" id="ex-judul" class="form-control" required></div>
+            <div class="row g-3 mb-3"><div class="col-md-6"><label class="small fw-bold">Mata Pelajaran</label><input type="text" name="mapel" id="ex-mapel" class="form-control" required></div><div class="col-md-6"><label class="small fw-bold">Durasi (Menit)</label><input type="number" name="durasi" id="ex-durasi" class="form-control" required></div></div>
+            <div class="row g-3 mb-3"><div class="col-md-6"><label class="small fw-bold">Waktu Mulai</label><input type="datetime-local" name="start" id="ex-start" class="form-control" required></div><div class="col-md-6"><label class="small fw-bold">Waktu Selesai</label><input type="datetime-local" name="end" id="ex-end" class="form-control" required></div></div>
+            <div class="row g-3 mb-3"><div class="col-md-6"><label class="small fw-bold">Target Kelas</label><input type="text" name="targetKelas" id="ex-kelas" class="form-control" required></div><div class="col-md-6"><label class="small fw-bold">Limit Mengerjakan</label><input type="number" name="limit" id="ex-limit" class="form-control" value="1"></div></div>
+            <div class="d-flex gap-4 mb-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="showStats" id="ex-showStats" value="Yes"><label class="small">Tampilkan Nilai</label></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="randomQ" id="ex-randomQ" value="Yes"><label class="small">Acak Soal</label></div></div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold">SIMPAN JADWAL</button>
+        </form>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="modalEditQ" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title fw-bold text-dark"><i class="fas fa-edit me-2"></i>Edit Soal</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="frm-edit-q" onsubmit="event.preventDefault(); saveEditQ(); return false;">
+                    <input type="hidden" id="eq-id">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4"><label class="small fw-bold">Nomor Soal</label><input type="number" id="eq-nomor" class="form-control" required></div>
+                        <div class="col-md-4"><label class="small fw-bold">Tipe Soal</label><select id="eq-tipe" class="form-select"><option value="PGS">Pilihan Ganda</option><option value="PGK">PG Kompleks</option><option value="Uraian">Uraian</option></select></div>
+                        <div class="col-md-4"><label class="small fw-bold">Skor</label><input type="number" id="eq-skor" class="form-control" required></div>
+                    </div>
+                    <div class="mb-3"><label class="small fw-bold">Pertanyaan</label><textarea id="eq-pertanyaan" class="form-control" rows="4"></textarea></div>
+                    <div id="eq-options-area" class="mb-3 border p-3 rounded bg-light"></div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold">SIMPAN SOAL</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+// ==========================================
+// CONFIG: GANTI URL DI BAWAH INI
+// ==========================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTsGOZzMhqqxdx9Q_p8LRwT3ufjk1nFoMBQoU30QmF7L9IyvRoRsWJeRifH9sQQr88gA/exec'; 
+
+let user = null; let gData = {}; let allUsersData = []; let recapAllData = [];
+let activeExamId = null; let timerInt, monitorInterval, autosaveInterval; let totalQ = 0; let currentQuestionsData = []; 
+let isExamFinished = false; let violationCount = 0; const maxViolations = 3; let examSubmitting = false;
+
+// Helpers: Kop Surat & Pengelompokan
+function getKopSurat() {
+    return `<div class="print-kop">
+        <h2>DWI LMS</h2>
+        <p>Jl. Pucangan I No. 34, Gubeng, Kota Surabaya, Jawa Timur 60281</p>
+    </div>`;
+}
+
+function groupBy(array, key) { 
+    return array.reduce((result, obj) => { 
+        const val = obj[key] || 'Umum'; 
+        (result[val] = result[val] || []).push(obj); 
+        return result; 
+    }, {}); 
+}
+
+// --- API FETCHER ---
+async function fetchAPI(payload) {
+    if(user) payload.caller = { ID: user.ID, Role: user.Role, Kelas: user.Kelas };
+    try { const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) }); return await response.json(); } 
+    catch (e) { return { status: 'error', msg: 'Koneksi ke server terputus.' }; }
+}
+
+$(document).ready(() => {
+    $('#togglePassword').click(function(){ const p=$('#p-login'); p.attr('type', p.attr('type')==='password'?'text':'password'); $(this).toggleClass('fa-eye fa-eye-slash'); });
+    const savedUser = localStorage.getItem('cbt_user');
+    if(savedUser) { 
+        user = JSON.parse(savedUser); 
+        if(user.LogoUrl) $('#logo-container img').attr('src', user.LogoUrl); 
+        initDash(); 
+    }
+});
+
+function toggleSidebar() { $('#sidebar').toggleClass('active'); $('#sidebar-overlay').toggleClass('active'); }
+function showLoad(s) { s ? $('#loader').removeClass('hidden') : $('#loader').addClass('hidden'); }
+function toast(icon, title) { Swal.mixin({toast: true, position: 'top-end', showConfirmButton: false, timer: 3000}).fire({icon: icon, title: title}); }
+
+// --- AUTH & PROFIL ---
+async function handleLogin() {
+    showLoad(true);
+    const res = await fetchAPI({ action: 'login', username: $('#u-login').val(), password: $('#p-login').val() });
+    showLoad(false);
+    if(res.status === 'success') {
+        user = res.data; user.LogoUrl = res.logo; localStorage.setItem('cbt_user', JSON.stringify(user));
+        if(res.logo) $('#logo-container img').attr('src', res.logo);
+        initDash();
+    } else Swal.fire('Gagal', res.msg, 'error');
+}
+
+function handleLogout() { Swal.fire({ title: 'Logout?', icon: 'warning', showCancelButton: true }).then((r) => { if(r.isConfirmed) { localStorage.clear(); window.location.reload(); } }); }
+
+function initDash() {
+    $('#view-auth').hide(); $('#view-dashboard').removeClass('hidden');
+    $('#u-name-disp').text(user.Nama); $('#user-role-disp').text(String(user.Role).toUpperCase());
+    
+    const displayFotoUrl = user.FotoUrl || user.Foto || 'https://via.placeholder.com/40';
+    $('#sidebar-user-img').attr('src', displayFotoUrl);
+    
+    $('.components').addClass('hidden');
+    const r = String(user.Role).toLowerCase();
+    if(r === 'siswa') { $('#menu-siswa').removeClass('hidden'); loadPage('siswa-home'); } 
+    else if(r === 'guru') { $('#menu-guru').removeClass('hidden'); loadPage('admin-home'); } 
+    else { $('#menu-admin').removeClass('hidden'); loadPage('admin-home'); } 
+}
+
+function openProfileModal() { 
+    $('#modalProfile').modal('show'); 
+    $('#prof-nama').val(user.Nama); 
+    $('#prof-pass').val(''); 
+    $('#prof-b64').val(''); 
+    $('#prof-preview').attr('src', user.FotoUrl || user.Foto || 'https://via.placeholder.com/100'); 
+}
+
+function previewProfileImage(input) { 
+    if (input.files && input.files[0]) { 
+        const reader = new FileReader(); 
+        reader.onload = function(e) { $('#prof-preview').attr('src', e.target.result); $('#prof-b64').val(e.target.result); }; 
+        reader.readAsDataURL(input.files[0]); 
+    } 
+}
+
+function toggleProfPass() { const p = $('#prof-pass'); p.attr('type', p.attr('type') === 'password' ? 'text' : 'password'); $('#icon-prof-pass').toggleClass('fa-eye fa-eye-slash'); }
+
+async function saveProfile() {
+    $('#btn-save-profile').prop('disabled', true).text('MENYIMPAN...');
+    const res = await fetchAPI({ action: 'updateProfile', nama: $('#prof-nama').val(), password: $('#prof-pass').val(), foto: $('#prof-b64').val() });
+    $('#btn-save-profile').prop('disabled', false).text('SIMPAN PERUBAHAN');
+    if(res.status === 'success') {
+        user = res.user; localStorage.setItem('cbt_user', JSON.stringify(user));
+        $('#u-name-disp').text(user.Nama); 
+        if(user.FotoUrl) $('#sidebar-user-img').attr('src', user.FotoUrl);
+        $('#modalProfile').modal('hide'); toast('success', 'Profil Diperbarui!');
+    } else Swal.fire('Gagal', res.msg, 'error');
+}
+
+// --- NAVIGATION (Loading Dipercepat & Bug 'Nyantai' Diperbaiki) ---
+function appRefresh() { const activeLink = $('.nav-link.active'); if (activeLink.length > 0) { const match = activeLink.attr('onclick').match(/'([^']+)'/); if(match) loadPage(match[1]); } }
+async function handleSysAction(action) { showLoad(true); const res = await fetchAPI({action:action}); showLoad(false); toast('success', res.msg); }
+
+async function loadPage(page) {
+    clearInterval(timerInt); clearInterval(monitorInterval); clearInterval(autosaveInterval);
+    $('#view-exam').addClass('hidden'); $('#view-dashboard').removeClass('hidden'); $('body').removeClass('exam-mode');
+    $('#page-title').text(page.replace('-', ' ').toUpperCase());
+    $('.nav-link').removeClass('active'); $(`a[onclick="loadPage('${page}')"]`).addClass('active');
+    if(window.innerWidth <= 768) { $('#sidebar').removeClass('active'); $('#sidebar-overlay').removeClass('active'); }
+
+    // Suntik Loading Cepat agar layar langsung bersih dan tidak stay di menu sebelumnya
+    $('#content-area').html('<div class="d-flex justify-content-center align-items-center" style="height: 40vh;"><div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div></div>');
+
+    if(page === 'guru-monitoring') { renderMonitoring(); return; }
+
+    let action = 'getDashboardData';
+    if(page === 'admin-users') action = 'getUserList';
+    else if(page === 'admin-classroom' || page === 'siswa-classroom') action = 'getClassroomData';
+    else if(page === 'hasil-rekap') action = 'getRecapList';
+    
+    const res = await fetchAPI({ action: action });
+
+    if (res.status === 'success') {
+        if(page === 'admin-users') { allUsersData = res.data; renderUsers(); }
+        else if(page === 'hasil-rekap') { recapAllData = res.data; renderRecapTable(); }
+        else if(page === 'admin-classroom') renderAdminClassroom(res.data);
+        else if(page === 'siswa-classroom') renderSiswaClassroom(res.data);
+        else { gData = res.data; renderContent(page); }
+    } else {
+        Swal.fire('Error', res.msg, 'error');
+        $('#content-area').html('<div class="alert alert-danger text-center">Gagal memuat data.</div>');
+    }
+}
+
+// --- EXCEL UPLOAD & DOWNLOAD LOGIC ---
+function downloadExcelTemplate(type) {
+    let wb = XLSX.utils.book_new(); let ws_data = [];
+    if(type === 'users') {
+        ws_data.push(["NamaLengkap", "Username", "Password", "Role", "Kelas", "Sekolah"]);
+        ws_data.push(["Siswa Dummy", "siswa01", "12345", "siswa", "7A", "DWI LMS"]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ws_data), "Peserta");
+        XLSX.writeFile(wb, "Template_Upload_Peserta.xlsx");
+    } else if(type === 'questions') {
+        ws_data.push(["Nomor", "Tipe", "Pertanyaan", "OpsiA", "OpsiB", "OpsiC", "OpsiD", "OpsiE", "Kunci", "Skor"]);
+        ws_data.push([1, "PGS", "Ibukota Indonesia adalah?", "Jakarta", "Bandung", "Surabaya", "Medan", "Bali", "Jakarta", 10]);
+        ws_data.push([2, "PGK", "Hewan berkaki empat? (Pilih >1)", "Sapi", "Ayam", "Kambing", "Bebek", "", "Sapi|Kambing", 10]);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ws_data), "BankSoal");
+        XLSX.writeFile(wb, "Template_Upload_Soal.xlsx");
+    }
+}
+
+function handleExcelUpload(e, type, eid = null) {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        
+        if(json.length === 0) return Swal.fire('Kosong', 'Tidak ada data di Excel', 'warning');
+        showLoad(true);
+        if(type === 'users') {
+            const res = await fetchAPI({ action: 'uploadUsers', data: json });
+            showLoad(false); if(res.status==='success') { toast('success', res.msg); loadPage('admin-users'); } else Swal.fire('Error', res.msg, 'error');
+        } else if(type === 'questions') {
+            const res = await fetchAPI({ action: 'uploadQuestions', examId: eid, data: json });
+            showLoad(false); if(res.status==='success') { toast('success', res.msg); loadQList(); } else Swal.fire('Error', res.msg, 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = ''; 
+}
+
+// --- RENDER CONTENT & GROUPING ---
+function renderAdminClassroom(data) {
+  let h = `<div class="d-flex justify-content-between mb-3"><button class="btn btn-primary shadow-sm" onclick="openClassroomModal()">+ Buat Materi Kelas</button></div>`;
+  if(!data || data.length === 0) h += `<div class="alert alert-info">Belum ada materi dibuat.</div>`;
+  else {
+    const grouped = groupBy(data, 'TargetKelas');
+    for (const kelas in grouped) {
+        h += `<div class="group-title"><i class="fas fa-layer-group me-2"></i>Kelas: ${kelas}</div><div class="row g-3">`;
+        grouped[kelas].forEach(c => {
+            const safeData = encodeURIComponent(JSON.stringify(c));
+            h += `<div class="col-md-6 col-lg-4"><div class="card h-100 shadow-sm border-0 border-start border-4 border-info"><div class="card-body"><small class="text-muted d-block mb-1">${c.WaktuDibuat.substring(0,10)}</small><h6 class="fw-bold mb-3">${c.Judul}</h6><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-dark flex-fill" onclick="openClassroomModal('${safeData}')">Edit</button><button class="btn btn-sm btn-danger" onclick="deleteClassroom('${c.ClassroomID}')"><i class="fas fa-trash"></i></button></div></div></div></div>`;
+        });
+        h += `</div>`;
+    }
+  }
+  $('#content-area').html(h);
+}
+
+function renderContent(page) {
+    const area = $('#content-area'); let h = '';
+    if (page === 'admin-home') {
+        h = `<div class="row g-4"><div class="col-md-4"><div class="card p-4 shadow-sm border-start border-primary border-4"><h2>${gData.stats.totalSiswa}</h2><p>Total Siswa</p></div></div><div class="col-md-4"><div class="card p-4 shadow-sm border-start border-success border-4"><h2>${gData.stats.totalUjian}</h2><p>Total Ujian</p></div></div></div>`;
+    } else if (page === 'admin-ujian') {
+        h = `<div class="d-flex gap-2 mb-3"><button class="btn btn-primary shadow-sm" onclick="openExamModal()">+ Jadwal Baru</button></div>`;
+        if(!gData.exams || gData.exams.length === 0) h += `<div class="alert alert-info">Belum ada ujian.</div>`;
+        else {
+            const grouped = groupBy(gData.exams, 'TargetKelas');
+            for (const kelas in grouped) {
+                h += `<div class="group-title"><i class="fas fa-calendar-alt me-2"></i>Jadwal Kelas: ${kelas}</div><div class="row g-3">`;
+                grouped[kelas].forEach(e => {
+                    const safeData = encodeURIComponent(JSON.stringify(e));
+                    h += `<div class="col-md-6 col-lg-4"><div class="card h-100 shadow-sm border-0 border-start border-4 border-primary"><div class="card-body"><h6 class="fw-bold text-dark">${e.Judul}</h6><span class="badge bg-secondary mb-3">${e.Mapel}</span><div class="d-flex flex-wrap gap-2"><button class="btn btn-sm btn-outline-dark flex-fill" onclick="openExamModal('${safeData}')">Edit</button><button class="btn btn-sm btn-outline-primary flex-fill" onclick="manageQ('${e.ExamID}')"><i class="fas fa-list me-1"></i> Soal</button><button class="btn btn-sm btn-success flex-fill" onclick="printDocOptions('${safeData}')"><i class="fas fa-print"></i> Cetak</button><button class="btn btn-sm btn-danger" onclick="delExam('${e.ExamID}')"><i class="fas fa-trash"></i></button></div></div></div></div>`;
+                });
+                h += `</div>`;
+            }
+        }
+    } else if (page === 'siswa-home') {
+        h = `<div class="card mb-4 border-0 shadow-sm bg-primary text-white"><div class="card-body"><h5 class="fw-bold">Halo, ${user.Nama}</h5></div></div><h5 class="fw-bold mb-3 border-bottom pb-2">Ujian Aktif</h5><div class="row g-4 mb-5">`;
+        if(!gData.availableExams || gData.availableExams.length === 0) h += '<div class="col-12"><div class="alert alert-info text-center">Tidak ada ujian aktif saat ini.</div></div>';
+        else {
+            gData.availableExams.forEach(e => {
+                let btnState = '', btnText = 'MULAI UJIAN', btnClass = 'btn-primary';
+                if (e.IsFinished) { btnState = 'disabled'; btnText = 'SUDAH DIKERJAKAN'; btnClass = 'btn-secondary'; }
+                h += `<div class="col-md-6 col-lg-4"><div class="card h-100 shadow-sm border-0"><div class="card-body"><h5 class="fw-bold text-primary">${e.Judul}</h5><div class="mb-2"><span class="badge bg-info">${e.Mapel}</span> <span class="badge bg-light text-dark border">${e.Durasi} Menit</span></div><button class="btn ${btnClass} w-100 fw-bold shadow-sm" onclick="startExam('${e.ExamID}')" ${btnState}>${btnText}</button></div></div></div>`;
+            });
+        }
+        h += '</div><h5 class="fw-bold mb-3 border-bottom pb-2 mt-4"><i class="fas fa-history me-2"></i>Riwayat</h5>';
+        if(!gData.history || gData.history.length === 0) h += '<p class="text-muted fst-italic">Belum ada riwayat.</p>';
+        else {
+            h += `<div class="table-responsive bg-white rounded shadow-sm p-3"><table class="table table-hover align-middle mb-0"><thead><tr><th>Tanggal</th><th>Ujian</th><th>Nilai</th><th>Status</th></tr></thead><tbody>`;
+            gData.history.forEach(r => { h += `<tr><td>${r.WaktuSubmit}</td><td><div class="fw-bold">${r.Judul}</div></td><td><span class="badge bg-warning text-dark">${r.Nilai}</span></td><td><span class="badge bg-success">Selesai</span></td></tr>`; });
+            h += `</tbody></table></div>`;
+        }
+    }
+    area.html(h);
+}
+
+// --- DATA PESERTA & CETAK KARTU (2 Kolom x 5 Baris A4) ---
+function renderUsers() {
+    const uniqueKelas = [...new Set(allUsersData.map(u => u.Kelas))].filter(k => k && k!=='-').sort();
+    let filterHtml = `<select id="filter-user-kelas" class="form-select w-auto d-inline-block me-2" onchange="applyUserFilter()"><option value="">Semua Kelas</option>${uniqueKelas.map(k=>`<option value="${k}">${k}</option>`).join('')}</select>`;
+    
+    let h = `<div class="card p-3 shadow-sm border-0 mb-3"><div class="d-flex flex-wrap justify-content-between gap-2 align-items-center">
+        <div>
+            <button class="btn btn-success me-1" onclick="$('#modalUser').modal('show');$('#frm-user')[0].reset();$('#mu-id').val('');">+ Tambah User</button>
+            <button class="btn btn-outline-success me-1" onclick="downloadExcelTemplate('users')"><i class="fas fa-download"></i> Template</button>
+            <label class="btn btn-outline-primary mb-0"><i class="fas fa-upload"></i> Upload<input type="file" accept=".xlsx, .xls" class="d-none" onchange="handleExcelUpload(event, 'users')"></label>
+        </div>
+        <div>${filterHtml}<button class="btn btn-warning shadow-sm" onclick="printKartuPeserta()"><i class="fas fa-id-badge me-1"></i> Cetak Kartu</button></div>
+    </div></div>
+    <div class="table-responsive bg-white rounded shadow-sm"><table class="table table-hover align-middle mb-0"><thead class="table-light"><tr><th>Nama</th><th>Username</th><th>Password</th><th>Role</th><th>Kelas</th><th>Aksi</th></tr></thead><tbody id="tbl-users-body"></tbody></table></div>`;
+    $('#content-area').html(h); applyUserFilter();
+}
+
+function applyUserFilter() {
+    const fK = $('#filter-user-kelas').val(); const tbody = $('#tbl-users-body'); tbody.empty();
+    const filtered = allUsersData.filter(u => fK ? u.Kelas === fK : true);
+    filtered.forEach(u => {
+        const safeData = encodeURIComponent(JSON.stringify(u));
+        tbody.append(`<tr><td class="fw-bold">${u.Nama}</td><td>${u.Username}</td><td>${u.Password}</td><td><span class="badge bg-secondary">${u.Role}</span></td><td>${u.Kelas || '-'}</td><td><button class="btn btn-sm btn-outline-dark me-1" onclick="editUser('${safeData}')"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger" onclick="delUser('${u.ID}')"><i class="fas fa-trash"></i></button></td></tr>`);
+    });
+}
+
+function printKartuPeserta() {
+    const fK = $('#filter-user-kelas').val();
+    const toPrint = allUsersData.filter(u => (fK ? u.Kelas === fK : true) && String(u.Role).toLowerCase() === 'siswa');
+    if(toPrint.length === 0) return Swal.fire('Kosong', 'Tidak ada siswa di kelas ini.', 'warning');
+    
+    let html = `<html><head><title>Kartu Ujian</title><style>
+        @page { size: A4; margin: 10mm; }
+        body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 0; background: #fff; }
+        .page { width: 190mm; display: flex; flex-wrap: wrap; justify-content: space-between; align-content: flex-start; }
+        .card { width: 92mm; height: 52mm; border: 1px dashed #000; border-radius: 8px; padding: 5mm; margin-bottom: 4mm; box-sizing: border-box; position: relative; }
+        .kop { text-align: center; border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 5px; }
+        .kop h4 { margin: 0; font-size: 12px; font-weight: bold; }
+        .kop p { margin: 2px 0 0 0; font-size: 9px; }
+        .content { display: flex; justify-content: space-between; }
+        .details { width: 70%; }
+        .details table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .details td { padding: 2px 0; vertical-align: middle; }
+        .foto-box { width: 22mm; height: 28mm; border: 1px solid #000; text-align: center; line-height: 28mm; font-size: 10px; margin-top: 5px; }
+        @media print { .no-print { display: none; } .page { page-break-after: always; } }
+    </style></head><body>
+    <div class="no-print" style="text-align:right; margin-bottom:15px; padding: 10px;">
+        <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; background:#198754; color:white; border:none; border-radius:4px; cursor: pointer;">Cetak Kartu</button>
+    </div>`;
+    
+    html += `<div class="page">`;
+    toPrint.forEach((u, i) => {
+        if (i > 0 && i % 10 === 0) html += `</div><div class="page">`;
+        html += `
+        <div class="card">
+            <div class="kop">
+                <h4>KARTU PESERTA UJIAN</h4>
+                <p>DWI LMS</p>
+            </div>
+            <div class="content">
+                <div class="details">
+                    <table>
+                        <tr><td width="35%">Nama</td><td width="5%">:</td><td><b>${u.Nama}</b></td></tr>
+                        <tr><td>Kelas</td><td>:</td><td>${u.Kelas}</td></tr>
+                        <tr><td>Username</td><td>:</td><td>${u.Username}</td></tr>
+                        <tr><td>Password</td><td>:</td><td>${u.Password}</td></tr>
+                    </table>
+                </div>
+                <div class="foto-box">3x4</div>
+            </div>
+        </div>`;
+    });
+    html += `</div></body></html>`; 
+    const win = window.open('','','width=900,height=600'); win.document.write(html); win.document.close();
+}
+
+// --- CETAK DOKUMEN UJIAN (HADIR & BERITA ACARA) ---
+function printDocOptions(str) {
+    const e = JSON.parse(decodeURIComponent(str));
+    Swal.fire({ title: 'Cetak Dokumen Ujian', text: `${e.Judul} (${e.TargetKelas})`, showCancelButton: true, confirmButtonText: 'Daftar Hadir', cancelButtonText: 'Berita Acara', confirmButtonColor: '#0dcaf0', cancelButtonColor: '#ffc107' })
+    .then((r) => { if(r.isConfirmed) printDaftarHadir(e); else if(r.dismiss === Swal.DismissReason.cancel) printBeritaAcara(e); });
+}
+
+function printDaftarHadir(e) {
+    showLoad(true); fetchAPI({action:'getUserList'}).then(res => {
+        showLoad(false); if(res.status !== 'success') return;
+        const students = res.data.filter(u => String(u.Role).toLowerCase() === 'siswa' && (e.TargetKelas === 'All' || String(u.Kelas).includes(e.TargetKelas)));
+        let html = `<html><head><title>Daftar Hadir</title><style>body{font-family:'Times New Roman',serif; padding:30px;} table{width:100%; border-collapse:collapse; margin-top:20px;} th,td{border:1px solid #000; padding:8px;} th{background:#f2f2f2;} .info{margin-bottom:20px; width:100%;} .info td{border:none; padding:3px;}</style></head><body><div style="text-align:right; margin-bottom:15px;" class="no-print"><button onclick="window.print()" style="padding:10px 20px; font-weight:bold; background:#198754; color:white; border:none; border-radius:4px; cursor: pointer;">Cetak</button></div> ${getKopSurat()} <h3 style="text-align:center;">DAFTAR HADIR PESERTA UJIAN</h3> <table class="info"><tr><td width="150">Mata Pelajaran</td><td>: ${e.Mapel} (${e.Judul})</td><td width="100">Kelas</td><td>: ${e.TargetKelas}</td></tr><tr><td>Tanggal</td><td>: ${e.StartDate.substring(0,10)}</td><td>Waktu</td><td>: ${e.StartDate.substring(11,16)} - ${e.EndDate.substring(11,16)}</td></tr></table> <table><thead><tr><th>No</th><th>Username</th><th>Nama Peserta</th><th>Tanda Tangan</th><th>Ket</th></tr></thead><tbody>`;
+        students.forEach((s, i) => html += `<tr><td align="center">${i+1}</td><td align="center">${s.Username}</td><td>${s.Nama}</td><td>${(i+1)%2!==0 ? (i+1)+'.' : ''}</td><td>${(i+1)%2===0 ? (i+1)+'.' : ''}</td></tr>`);
+        html += `</tbody></table></body></html>`; const win = window.open('','','width=900,height=700'); win.document.write(html); win.document.close();
+    });
+}
+
+function printBeritaAcara(e) {
+    let html = `<html><head><title>Berita Acara</title><style>body{font-family:'Times New Roman',serif; padding:40px; font-size:16px; line-height:1.6;} table{width:100%; margin:20px 0;} td{padding:5px; vertical-align:top;} .box{border:1px solid #000; min-height:100px; padding:10px;} @media print { .no-print { display: none; } }</style></head><body><div style="text-align:right; margin-bottom:15px;" class="no-print"><button onclick="window.print()" style="padding:10px 20px; font-weight:bold; background:#198754; color:white; border:none; border-radius:4px; cursor:pointer;">Cetak</button></div> ${getKopSurat()} <h3 style="text-align:center;">BERITA ACARA PELAKSANAAN UJIAN</h3> <p>Pada hari ini, tanggal <b>${e.StartDate.substring(0,10)}</b> telah diselenggarakan Ujian Berbasis Komputer:</p> <table><tr><td width="200">Mata Pelajaran</td><td>: <b>${e.Mapel} (${e.Judul})</b></td></tr><tr><td>Kelas / Ruang</td><td>: ${e.TargetKelas} / ......................</td></tr><tr><td>Waktu Pelaksanaan</td><td>: ${e.StartDate.substring(11,16)} s.d ${e.EndDate.substring(11,16)}</td></tr></table> <p>Dengan jumlah peserta:</p> <table><tr><td width="250">1. Jumlah Peserta Seharusnya</td><td>: ........ Orang</td></tr><tr><td>2. Jumlah Peserta Hadir</td><td>: ........ Orang</td></tr><tr><td>3. Jumlah Peserta Tidak Hadir</td><td>: ........ Orang</td></tr></table> <p>Catatan selama pelaksanaan ujian:</p> <div class="box"></div> <table style="margin-top:50px; text-align:center;"><tr><td width="50%">Pengawas 1<br><br><br><br>...................................</td><td width="50%">Pengawas 2<br><br><br><br>...................................</td></tr></table></body></html>`;
+    const win = window.open('','','width=900,height=700'); win.document.write(html); win.document.close();
+}
+
+// --- SOAL & EXAM (DENGAN PREVIEW & EDIT) ---
+function manageQ(eid) { 
+    activeExamId = eid; 
+    $('#content-area').html(`
+    <div class="d-flex justify-content-between mb-3">
+        <button class="btn btn-secondary shadow-sm" onclick="loadPage('admin-ujian')"><i class="fas fa-arrow-left"></i> Kembali</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-info text-white shadow-sm" onclick="previewAllQ()"><i class="fas fa-eye"></i> Preview</button>
+            <button class="btn btn-outline-success shadow-sm" onclick="downloadExcelTemplate('questions')"><i class="fas fa-download"></i> Template</button>
+            <label class="btn btn-success mb-0 shadow-sm"><i class="fas fa-upload"></i> Upload Excel<input type="file" accept=".xlsx, .xls" class="d-none" onchange="handleExcelUpload(event, 'questions', '${eid}')"></label>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm p-4">
+        <div id="q-list-container"></div>
+        <div class="text-center mt-4">
+            <button class="btn btn-primary rounded-pill px-5 shadow-sm" onclick="addNewQuestionBlock()">+ Tambah Soal Manual</button>
+        </div>
+    </div>`);
+    loadQList();
+}
+
+async function loadQList() {
+    $('#q-list-container').html('<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>');
+    const res = await fetchAPI({ action: 'getExamQuestions', examId: activeExamId });
+    if (res.status === 'success') {
+        let html = ''; currentQuestionsData = res.data || [];
+        if(currentQuestionsData.length > 0) {
+            currentQuestionsData.forEach((q, idx) => {
+                html += `
+                <div class="p-3 border rounded mb-3 bg-light" id="block-${q.QID}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="badge bg-primary fs-6">No. ${q.Nomor||idx+1} [${q.Tipe}]</span>
+                        <div>
+                            <button class="btn btn-sm btn-warning me-1" onclick="editQ('${q.QID}')"><i class="fas fa-edit"></i> Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteQBlock('${q.QID}')"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    <div class="fw-bold text-dark q-text-preview" style="font-size: 14px;">${q.Pertanyaan}</div>
+                </div>`;
+            });
+        } else { html = `<div class="alert alert-warning text-center">Belum ada soal. Silakan upload Excel.</div>`; }
+        $('#q-list-container').html(html);
+    }
+}
+
+function deleteQBlock(uid) { Swal.fire({title:'Hapus Soal?', icon:'warning', showCancelButton:true}).then(async r=>{ if(r.isConfirmed){ showLoad(true); await fetchAPI({ action: 'adminDeleteQuestion', id: uid }); showLoad(false); loadQList(); } }); }
+function addNewQuestionBlock() { Swal.fire('Info', 'Saat ini disarankan menggunakan format Upload Excel agar jauh lebih cepat dan rapi.', 'info'); }
+
+function previewAllQ() {
+    if(!currentQuestionsData || currentQuestionsData.length === 0) return Swal.fire('Kosong', 'Belum ada soal untuk di-preview.', 'warning');
+    let html = '<div class="p-4 bg-white">';
+    currentQuestionsData.forEach((q, i) => {
+        html += `<div class="mb-4 pb-3 border-bottom"><div class="fw-bold mb-2"><span class="badge bg-primary me-2">${q.Nomor || i+1}</span>${q.Pertanyaan}</div>`;
+        if(q.Tipe.includes('PG')) {
+            const opts = JSON.parse(q.Options || "[]");
+            const keys = JSON.parse(q.Key || "[]");
+            opts.forEach((o) => {
+                const isKey = keys.includes(o);
+                html += `<div class="ms-4 p-2 mb-1 border rounded ${isKey ? 'bg-success text-white border-success fw-bold' : 'bg-light'}">${o} ${isKey ? '<i class="fas fa-check-circle float-end mt-1"></i>' : ''}</div>`;
+            });
+        }
+        html += `</div>`;
+    });
+    html += '</div>';
+
+    if($('#modalPreviewQ').length === 0) {
+        $('body').append(`
+        <div class="modal fade" id="modalPreviewQ" tabindex="-1">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title fw-bold"><i class="fas fa-eye me-2"></i>Preview Soal</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-light" id="preview-q-body"></div>
+                </div>
+            </div>
+        </div>`);
+    }
+    $('#preview-q-body').html(html);
+    $('#modalPreviewQ').modal('show');
+}
+
+function editQ(qid) {
+    const q = currentQuestionsData.find(x => String(x.QID) === String(qid));
+    if(!q) return;
+    $('#eq-id').val(q.QID);
+    $('#eq-nomor').val(q.Nomor);
+    $('#eq-tipe').val(q.Tipe).prop('disabled', true); 
+    $('#eq-skor').val(q.Skor || 10);
+    
+    $('#eq-pertanyaan').summernote('destroy');
+    $('#eq-pertanyaan').val(q.Pertanyaan);
+    $('#eq-pertanyaan').summernote({ height: 150, toolbar: [['style', ['bold', 'italic', 'underline', 'clear']], ['para', ['ul', 'ol']], ['insert', ['picture']]] });
+    
+    let optHtml = '';
+    if(q.Tipe.includes('PG')) {
+        const opts = JSON.parse(q.Options || "[]");
+        const keys = JSON.parse(q.Key || "[]");
+        const isRadio = q.Tipe === 'PGS';
+        optHtml += `<label class="small fw-bold mb-2 text-primary"><i class="fas fa-list"></i> Opsi Jawaban (Centang untuk jadikan Kunci)</label>`;
+        opts.forEach((o, i) => {
+            const isChecked = keys.includes(o) ? 'checked' : '';
+            optHtml += `
+            <div class="input-group mb-2 shadow-sm">
+                <div class="input-group-text bg-white border-success">
+                    <input class="form-check-input mt-0 border-success" type="${isRadio ? 'radio' : 'checkbox'}" name="eq-key" value="${i}" ${isChecked} style="cursor:pointer;" required>
+                </div>
+                <input type="text" class="form-control eq-opt-val" value="${o.replace(/"/g, '&quot;')}">
+            </div>`;
+        });
+    } else {
+        optHtml += `<label class="small fw-bold mb-2">Kata Kunci Jawaban (Pisahkan koma)</label>
+        <textarea class="form-control eq-essay-key" rows="2">${JSON.parse(q.Key || "[]").join(', ')}</textarea>`;
+    }
+    $('#eq-options-area').html(optHtml);
+    $('#modalEditQ').modal('show');
+}
+
+async function saveEditQ() {
+    const id = $('#eq-id').val();
+    const num = $('#eq-nomor').val();
+    const type = $('#eq-tipe').val();
+    const score = $('#eq-skor').val();
+    const text = $('#eq-pertanyaan').summernote('code');
+    
+    let opts = [], keys = [], keyIndices = [];
+    if (type.includes('PG')) {
+        $('.eq-opt-val').each(function(i) { opts.push($(this).val()); });
+        $('input[name="eq-key"]:checked').each(function() {
+            const idx = parseInt($(this).val());
+            keys.push(opts[idx]); keyIndices.push(idx);
+        });
+        if(keys.length === 0) return Swal.fire('Peringatan', 'Pilih minimal satu kunci jawaban!', 'warning');
+    } else {
+        keys = $('.eq-essay-key').val().split(',').map(k => k.trim()).filter(k => k !== '');
+    }
+
+    const payload = { id: id, num: num, type: type, text: text, options: opts, key: keys, keyIndices: keyIndices, score: score };
+    
+    showLoad(true);
+    const res = await fetchAPI({ action: 'adminSaveSingleQuestion', examId: activeExamId, data: payload });
+    showLoad(false);
+
+    if(res.status === 'success') {
+        $('#modalEditQ').modal('hide'); toast('success', 'Soal diperbarui!'); loadQList();
+    } else { Swal.fire('Gagal', res.msg, 'error'); }
+}
+
+// --- LOGIKA UJIAN SISWA (TETAP AMAN) ---
+function startExam(eid) {
+    Swal.fire({ title: 'Mulai Ujian?', text: "Layar penuh aktif. Jangan keluar aplikasi!", icon: 'info', showCancelButton: true, confirmButtonText: '🚀 MULAI', confirmButtonColor: '#1e3a8a' }).then(async r => {
+        if(r.isConfirmed) {
+            if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(() => {}); }
+            showLoad(true);
+            const res = await fetchAPI({ action: 'getExamPack', examId: eid });
+            showLoad(false);
+            if(res.status === 'success') {
+                localStorage.removeItem(`ANS_${user.ID}_${eid}`);
+                activeExamId = eid; totalQ = res.data.length;
+                $('#do-exam-title').html(`${res.judul} <span class="mx-2">|</span> ${user.Nama}`);
+                localStorage.setItem('cbt_active_exam', JSON.stringify({ id: eid, qs: res.data, dur: res.duration, start: Date.now(), judul: res.judul }));
+                violationCount = 0; $('#viol-disp').text(violationCount); enableSecurity(); runExam(res.data, res.duration, false);
+            } else Swal.fire('Gagal', res.msg, 'error');
+        }
+    });
+}
+
+function enableSecurity() { violationCount = 0; isExamFinished = false; violationLock = false; document.addEventListener("visibilitychange", handleVisibilityChange); window.addEventListener("blur", handleWindowBlur); document.addEventListener("fullscreenchange", handleFullscreenChange); $(document).on("contextmenu.exam", function(e) { e.preventDefault(); return false; }); $(document).on("keydown.exam", function(e) { if (e.key === "PrintScreen" || (e.ctrlKey && e.key === "p") || (e.key === "F12")) { e.preventDefault(); return false; } }); }
+function disableSecurity() { document.removeEventListener("visibilitychange", handleVisibilityChange); window.removeEventListener("blur", handleWindowBlur); document.removeEventListener("fullscreenchange", handleFullscreenChange); $(document).off(".exam"); }
+function handleVisibilityChange() { if (!isExamFinished && document.hidden) triggerViolation("Anda keluar dari tab ujian!"); }
+function handleWindowBlur() { if (!isExamFinished) triggerViolation("Anda meninggalkan halaman ujian!"); }
+function handleFullscreenChange() { if (!isExamFinished && !document.fullscreenElement) { triggerViolation("Anda keluar dari mode fullscreen!"); try{document.documentElement.requestFullscreen().catch(()=>{});}catch(e){} } }
+
+function triggerViolation(msg) {
+    if(violationLock || isExamFinished) return;
+    violationLock = true; violationCount++; $('#viol-disp').text(violationCount);
+    if (violationCount >= maxViolations) {
+        isExamFinished = true;
+        Swal.fire({ icon: 'error', title: 'DISKUALIFIKASI!', text: 'Terlalu banyak pelanggaran. Ujian otomatis dikirim.', allowOutsideClick: false, allowEscapeKey: false, confirmButtonText: 'OK' }).then(() => { submitExamButton(true); });
+    } else {
+        Swal.fire({ icon: 'warning', title: 'PERINGATAN!', text: `${msg} (${violationCount}/${maxViolations})`, confirmButtonText: 'KEMBALI KE UJIAN', allowOutsideClick: false }).then(() => { violationLock = false; try{document.documentElement.requestFullscreen().catch(()=>{});}catch(e){} });
+    }
+}
+
+function runExam(qs, dur, isResume) {
+    $('#view-dashboard').addClass('hidden'); $('#view-exam').removeClass('hidden'); $('body').addClass('exam-mode');
+    const c = $('#q-slides-container'); const g = $('#nav-grid'); c.empty(); g.empty();
+    qs.forEach((q,i) => {
+        let inp = '';
+        if(q.Tipe.includes('PG')) {
+            const opts = JSON.parse(q.Options||"[]");
+            opts.forEach(o => inp += `<label class="form-check p-3 border mb-2 rounded bg-white clickable-opt d-flex align-items-center w-100 shadow-sm"><input class="form-check-input flex-shrink-0 mt-0" type="${q.Tipe==='PGK'?'checkbox':'radio'}" name="ans-${q.QID}" value="${encodeURIComponent(o)}" onchange="saveAnsLocal('${q.QID}', '${q.Tipe}', ${i})" style="width: 1.5em; height: 1.5em;"><div class="ms-3 flex-grow-1 opt-content mb-0">${o}</div></label>`);
+        } else inp = `<textarea class="form-control" rows="5" name="ans-${q.QID}" onchange="saveAnsLocal('${q.QID}', 'ESSAY', ${i})"></textarea>`;
+        c.append(`<div class="q-slide hidden" id="sl-${i}" data-qid="${q.QID}" data-type="${q.Tipe}"><div class="badge bg-primary mb-3">Soal No. ${q.Nomor||i+1}</div><div class="mb-4 q-content lead fw-bold text-dark">${q.Pertanyaan}</div>${inp}</div>`);
+        g.append(`<button id="nb-${i}" class="q-nav-btn ${i===0?'active-q':''}" onclick="jump(${i})">${i+1}</button>`);
+    });
+    restoreAnswers(qs); jump(0);
+
+    let startTime = Date.now();
+    if(isResume) { const storedState = JSON.parse(localStorage.getItem('cbt_active_exam')); if(storedState && storedState.start) startTime = storedState.start; }
+    const endTime = startTime + (dur * 60000);
+
+    clearInterval(timerInt);
+    timerInt = setInterval(() => {
+        const diff = Math.floor((endTime - Date.now()) / 1000);
+        if(diff <= 0) { clearInterval(timerInt); submitExamButton(true); }
+        else { let m = Math.floor(diff/60), s = diff%60; $('#timer-disp').text(`${m}:${s<10?'0':''}${s}`); if(diff < 300) $('#timer-disp').addClass('text-danger fw-bold'); }
+    }, 1000);
+    monitorInterval = setInterval(() => { fetchAPI({ action: 'updateClientProgress', examId: activeExamId, c: $('.q-nav-btn.answered').length, t: totalQ }); }, 20000);
+    autosaveInterval = setInterval(() => { const key = `ANS_${user.ID}_${activeExamId}`; const data = localStorage.getItem(key); if(data) fetchAPI({ action: 'autosaveAnswer', examId: activeExamId, j: data }); }, 60000);
+}
+
+function saveAnsLocal(qid, type, idx) {
+    let val; if(type.includes('PG')) { if(type==='PGK') { val=[]; $(`input[name="ans-${qid}"]:checked`).each(function(){ val.push(decodeURIComponent($(this).val())) }); } else val = decodeURIComponent($(`input[name="ans-${qid}"]:checked`).val()); } else val = $(`#sl-${idx} textarea`).val();
+    const key = `ANS_${user.ID}_${activeExamId}`; let currentData = JSON.parse(localStorage.getItem(key) || "{}"); currentData[qid] = val; localStorage.setItem(key, JSON.stringify(currentData)); markAns(idx);
+}
+
+function restoreAnswers(qs) { const key = `ANS_${user.ID}_${activeExamId}`; const saved = JSON.parse(localStorage.getItem(key) || "{}"); qs.forEach((q, idx) => { const val = saved[q.QID]; if(val) { markAns(idx); if(q.Tipe === 'PGS') $(`input[name="ans-${q.QID}"][value="${encodeURIComponent(val)}"]`).prop('checked', true); else if(q.Tipe === 'PGK') val.forEach(v => $(`input[name="ans-${q.QID}"][value="${encodeURIComponent(v)}"]`).prop('checked', true)); else if(q.Tipe === 'Uraian') $(`textarea[name="ans-${q.QID}"]`).val(val); } }); }
+function markAns(i) { $(`#nb-${i}`).addClass('answered'); }
+function jump(i) { currentQIdx = i; $('.q-slide').addClass('hidden'); $(`#sl-${i}`).removeClass('hidden'); $('.q-nav-btn').removeClass('active-q'); $(`#nb-${i}`).addClass('active-q'); }
+function navSlide(dir) { let next = currentQIdx + dir; if(next >= 0 && next < totalQ) jump(next); }
+
+async function submitExamButton(force = false) {
+    if (examSubmitting) return; const answeredCount = $('.q-nav-btn.answered').length;
+    if (!force) {
+        const result = await Swal.fire({ title: 'Kirim Jawaban?', html: `<div class="text-start"><p class="mb-2">Anda telah mengerjakan <b>${answeredCount}</b> dari <b>${totalQ}</b> soal.</p><div class="alert alert-warning small"><i class="fas fa-exclamation-circle me-1"></i>Pastikan semua jawaban sudah benar. Jawaban tidak bisa diubah setelah dikirim.</div></div>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#198754', cancelButtonColor: '#6c757d', confirmButtonText: 'Ya, Kirim Sekarang', cancelButtonText: 'Periksa Lagi' });
+        if (result.isConfirmed) processSubmission();
+    } else { processSubmission(); }
+}
+
+async function processSubmission(retryCount = 0) {
+    if (examSubmitting && retryCount === 0) return; examSubmitting = true;
+    const btn = $('#btn-finish'); const originalText = '<i class="fas fa-check-circle me-1"></i> KIRIM JAWABAN';
+    if (retryCount === 0) { btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...'); clearInterval(timerInt); clearInterval(monitorInterval); clearInterval(autosaveInterval); isExamFinished = true; disableSecurity(); }
+
+    let ans = [];
+    try {
+        $('.q-slide').each(function(idx) {
+            const qid = $(this).data('qid'); const t = $(this).data('type'); let v = null;
+            if (t.includes('PG')) { if (t === 'PGK') { v = []; $(this).find('input:checked').each(function() { v.push(decodeURIComponent($(this).val())) }); } else { const checked = $(this).find('input:checked').val(); if(checked) v = decodeURIComponent(checked); } }
+            else { v = $(this).find('textarea').val(); }
+            if (v !== null && v !== undefined) ans.push({ qid: qid, answer: v });
+        });
+    } catch(e) { console.error("Error collecting", e); }
+
+    const res = await fetchAPI({ action: 'submitExam', examId: activeExamId, answers: ans, violationCount: violationCount });
+    if (res.status === 'success') {
+        examSubmitting = false; btn.prop('disabled', false).html(originalText);
+        localStorage.removeItem('cbt_active_exam'); localStorage.removeItem(`ANS_${user.ID}_${activeExamId}`);
+        $('body').removeClass('exam-mode'); try { document.exitFullscreen().catch(()=>{}) } catch (e) {};
+        Swal.fire({ title: 'Selesai!', html: `<div class="mb-3 text-success" style="font-size: 4rem;"><i class="fas fa-check-circle"></i></div><h5 class="fw-bold">Jawaban Berhasil Dikirim</h5><p class="text-muted mt-2">Terima kasih, hasil pengerjaan Anda telah tersimpan di sistem.</p>`, confirmButtonText: 'KEMBALI KE BERANDA', confirmButtonColor: '#1e3a8a', allowOutsideClick: false, allowEscapeKey: false }).then(() => { $('#view-exam').addClass('hidden'); $('#view-dashboard').removeClass('hidden'); loadPage('siswa-home'); });
+    } else {
+        if (retryCount < 3) { setTimeout(() => processSubmission(retryCount + 1), 3000); } 
+        else { examSubmitting = false; btn.prop('disabled', false).html(originalText); Swal.fire('Koneksi Terputus', 'Server terlalu penuh. Gagal menghubungi server setelah beberapa percobaan. Silakan coba klik Kirim lagi.', 'error'); }
+    }
+}
+
+// --- RUANG KELAS, REKAP, DAN MONITORING ---
+function viewClassroom(str) {
+  const d = JSON.parse(decodeURIComponent(str));
+  $('#view-cls-title').text(d.Judul);
+  let descText = d.Deskripsi || "Tidak ada deskripsi tambahan.";
+  descText = descText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+  $('#view-cls-desc').html(descText);
+  let videoHtml = '';
+  if(d.LinkVideo && d.LinkVideo.trim() !== '') {
+    let embedUrl = d.LinkVideo;
+    if(embedUrl.includes('youtube.com/watch?v=')) { embedUrl = embedUrl.replace('watch?v=', 'embed/'); const amp = embedUrl.indexOf('&'); if(amp !== -1) embedUrl = embedUrl.substring(0, amp); } 
+    else if (embedUrl.includes('youtu.be/')) embedUrl = embedUrl.replace('youtu.be/', 'www.youtube.com/embed/');
+    videoHtml = `<div class="video-container"><iframe src="${embedUrl}" frameborder="0" allowfullscreen></iframe></div>`;
+  } else videoHtml = `<div class="alert alert-secondary text-center py-5"><i class="fas fa-video-slash fa-3x mb-3 text-muted"></i><br>Tidak ada materi video.</div>`;
+  $('#view-cls-video-container').html(videoHtml);
+  let meetHtml = '';
+  if(d.LinkMeet && d.LinkMeet.trim() !== '') meetHtml = `<p class="small text-muted mb-2">Sesi Live Interaktif</p><a href="${d.LinkMeet}" target="_blank" class="btn btn-success btn-lg w-100 rounded-pill shadow-sm"><i class="fas fa-video me-2"></i> JOIN VIDEO CONFERENCE</a>`;
+  else meetHtml = `<p class="small text-muted mb-0">Tidak ada jadwal live meet untuk sesi ini.</p>`;
+  $('#view-cls-meet-container').html(meetHtml);
+  $('#modalViewClassroom').modal('show');
+}
+
+function openClassroomModal(str) { $('#modalClassroom').modal('show'); if(str) { const d = JSON.parse(decodeURIComponent(str)); $('#cls-id').val(d.ClassroomID); $('#cls-judul').val(d.Judul); $('#cls-deskripsi').val(d.Deskripsi); $('#cls-video').val(d.LinkVideo); $('#cls-meet').val(d.LinkMeet); $('#cls-kelas').val(d.TargetKelas); } else { $('#modalClassroom form')[0].reset(); $('#cls-id').val(''); } }
+async function saveClassroom() { const fd = new FormData(document.getElementById('frm-classroom')); const d = Object.fromEntries(fd.entries()); showLoad(true); const res = await fetchAPI({ action: 'adminSaveClassroom', data: d }); showLoad(false); if(res.status === 'success') { $('#modalClassroom').modal('hide'); toast('success', 'Tersimpan!'); loadPage('admin-classroom'); } else Swal.fire('Gagal', res.msg, 'error'); }
+function deleteClassroom(id) { Swal.fire({title:'Hapus Materi?', icon:'warning', showCancelButton:true}).then(async r=>{ if(r.isConfirmed) { showLoad(true); await fetchAPI({ action: 'adminDeleteClassroom', id: id }); showLoad(false); loadPage('admin-classroom'); } }); }
+async function runAutoGenerateMateri() { const j = $('#cls-judul').val(); if(!j) return Swal.fire('Perhatian', 'Isi Judul dulu!', 'warning'); showLoad(true); const res = await fetchAPI({ action: 'autoGenerateMateriText', judul: j }); showLoad(false); if(res.status === 'success') $('#cls-deskripsi').val(res.data); }
+
+function editUser(s){ const u=JSON.parse(decodeURIComponent(s)); $('#modalUser').modal('show'); $('#mu-id').val(u.ID); $('#mu-nama').val(u.Nama); $('#mu-user').val(u.Username); $('#mu-pass').val(u.Password); $('#mu-role').val(u.Role); $('#mu-kelas').val(u.Kelas); $('#mu-sekolah').val(u.Sekolah); }
+async function saveUser(){ const d={id:$('#mu-id').val(), nama:$('#mu-nama').val(), username:$('#mu-user').val(), password:$('#mu-pass').val(), role:$('#mu-role').val(), kelas:$('#mu-kelas').val(), sekolah:$('#mu-sekolah').val()}; showLoad(true); await fetchAPI({ action: 'adminManageUser', mode: 'save', data: d }); showLoad(false); $('#modalUser').modal('hide'); loadPage('admin-users'); }
+function delUser(id){ Swal.fire({title:'Hapus User?', icon:'warning', showCancelButton:true}).then(async r=>{ if(r.isConfirmed){ showLoad(true); await fetchAPI({action: 'adminManageUser', mode: 'delete', data: {id: id}}); showLoad(false); loadPage('admin-users'); } }); }
+
+function renderRecapTable() {
+    const uniqueKelas = [...new Set(recapAllData.map(item => item.KelasSiswa))].sort();
+    const uniqueUjian = [...new Set(recapAllData.map(item => item.JudulUjian))].sort();
+    let h = `<div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold mb-0 text-primary"><i class="fas fa-chart-bar me-2"></i>Rekapitulasi Nilai</h5><button class="btn btn-success shadow-sm" onclick="printFilteredRecap()"><i class="fas fa-print me-2"></i>Cetak Rekap</button></div>
+    <div class="row g-2 mb-3"><div class="col-md-4"><select id="filter-ujian" class="form-select" onchange="applyFilter()"><option value="">Semua Ujian</option>${uniqueUjian.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div><div class="col-md-4"><select id="filter-kelas" class="form-select" onchange="applyFilter()"><option value="">Semua Kelas</option>${uniqueKelas.map(k => `<option value="${k}">${k}</option>`).join('')}</select></div><div class="col-md-4"><input type="text" id="filter-search" class="form-control" placeholder="Cari Nama Siswa..." onkeyup="applyFilter()"></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0" id="tbl-rekap"><thead class="table-light"><tr><th>Waktu</th><th>Nama Siswa</th><th>Kelas</th><th>Mata Pelajaran</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody id="tbl-rekap-body"></tbody></table></div></div></div>`;
+    $('#content-area').html(h); applyFilter();
+}
+
+function applyFilter() {
+    const fUjian = $('#filter-ujian').val(); const fKelas = $('#filter-kelas').val(); const fSearch = $('#filter-search').val().toLowerCase();
+    const tbody = $('#tbl-rekap-body'); tbody.empty(); recapDataStore = {};
+    const filtered = recapAllData.filter(item => { if(fUjian && item.JudulUjian !== fUjian) return false; if(fKelas && item.KelasSiswa !== fKelas) return false; if(fSearch && !item.NamaSiswa.toLowerCase().includes(fSearch)) return false; return true; });
+    window.currentFilteredData = filtered;
+    if(filtered.length === 0) { tbody.html('<tr><td colspan="6" class="text-center p-3">Tidak ada data ditemukan.</td></tr>'); return; }
+    filtered.forEach(r => { recapDataStore[r.ResultID] = { detail: r.Detail, nama: r.NamaSiswa, ujian: r.JudulUjian, nilai: r.TotalNilai }; tbody.append(`<tr><td class="small text-muted">${r.WaktuSubmit}</td><td><div class="fw-bold">${r.NamaSiswa}</div></td><td>${r.KelasSiswa}</td><td>${r.Mapel} <br><small class="text-muted">${r.JudulUjian}</small></td><td><span class="badge bg-primary fs-6">${r.TotalNilai}</span></td><td><button class="btn btn-sm btn-outline-success me-1" onclick="printRecap('${r.ResultID}')"><i class="fas fa-print"></i></button><button class="btn btn-sm btn-outline-danger" onclick="deleteResult('${r.ResultID}')"><i class="fas fa-trash"></i></button></td></tr>`); });
+}
+
+function printFilteredRecap() { 
+    if(!window.currentFilteredData || window.currentFilteredData.length === 0) return Swal.fire('Data Kosong', 'Tidak ada data nilai yang tampil.', 'info');
+    const fUjian = $('#filter-ujian').val() || 'Semua Ujian'; const fKelas = $('#filter-kelas').val() || 'Semua Kelas';
+    let html = `<html><head><title>Cetak Rekap</title><style>body{font-family:'Times New Roman',Times,serif;padding:30px}h2,h4{text-align:center;margin:5px 0}table{width:100%;border-collapse:collapse;margin-top:15px;font-size:14px}th,td{border:1px solid black;padding:8px}th{background:#f2f2f2}.text-center{text-align:center}.signature{margin-top:50px;width:100%;text-align:right}.signature div{display:inline-block;text-align:center;width:250px}@media print{.no-print{display:none}}</style></head><body><div class="no-print" style="margin-bottom:15px;text-align:right;"><button onclick="window.print()" style="padding:10px 20px; font-weight:bold; background:#198754; color:white; border:none; border-radius:4px;">Cetak</button></div>${getKopSurat()}<hr><h2>REKAPITULASI HASIL UJIAN</h2><p>Ujian: ${fUjian}<br>Kelas: ${fKelas}</p><table><thead><tr><th>No</th><th>Waktu</th><th>Nama</th><th>Kelas</th><th>Mata Pelajaran</th><th>Nilai</th></tr></thead><tbody>`;
+    window.currentFilteredData.forEach((r, i) => html += `<tr><td class="text-center">${i + 1}</td><td class="text-center">${r.WaktuSubmit}</td><td>${r.NamaSiswa}</td><td class="text-center">${r.KelasSiswa}</td><td>${r.Mapel} - ${r.JudulUjian}</td><td class="text-center" style="font-weight: bold;">${r.TotalNilai}</td></tr>`);
+    html += `</tbody></table><div class="signature"><div><p>${new Date().toLocaleDateString('id-ID')}</p><p style="margin-bottom:70px">Pengawas</p><p>_______________________</p></div></div><script>window.onload=function(){window.print()}<\/script></body></html>`;
+    const printWin = window.open('','','width=900,height=700'); printWin.document.write(html); printWin.document.close();
+}
+
+function printRecap(rid) { 
+    const d = recapDataStore[rid]; if(!d) return;
+    let detailArr = []; try { detailArr = JSON.parse(d.detail); } catch(e) {}
+    let detailHtml = '<table class="data-table"><thead><tr><th width="10%">No</th><th>Jawaban Siswa</th><th>Kunci Jawaban</th><th width="10%">Skor</th></tr></thead><tbody>';
+    detailArr.forEach(item => { let n = item.i !== undefined ? item.i : item[0]; let s = item.s !== undefined ? item.s : item[1]; let a = item.a !== undefined ? item.a : '-'; let k = item.k !== undefined ? item.k : '-'; detailHtml += `<tr><td style="text-align:center">${n}</td><td>${a}</td><td>${k}</td><td style="text-align:center">${s}</td></tr>`; });
+    detailHtml += '</tbody></table>';
+    const printWindow = window.open('', '', 'width=800,height=600');
+    printWindow.document.write(`<html><head><title>Hasil - ${d.nama}</title><style>body{font-family:'Times New Roman',Times,serif;padding:40px;color:#333}.header{text-align:center;border-bottom:3px solid #000;padding-bottom:10px;margin-bottom:20px}.score-box{border:2px solid #000;padding:15px;text-align:center;margin-bottom:20px;width:200px;float:right;background:#fafafa}.score-box .score{font-size:38px;font-weight:bold}.data-table{width:100%;border-collapse:collapse;margin-top:15px}.data-table th,.data-table td{border:1px solid #000;padding:8px;white-space:pre-wrap}.data-table th{background:#f0f0f0}.clearfix::after{content:"";clear:both;display:table}.footer{margin-top:50px;text-align:right}.footer div{display:inline-block;text-align:center;width:250px}@media print{.no-print{display:none}}</style></head><body><div class="no-print" style="text-align:right;margin-bottom:20px"><button onclick="window.print()" style="padding:10px 20px; font-size:16px; cursor:pointer; background:#1e3a8a; color:white; border:none; border-radius:5px;">Cetak Dokumen</button></div>${getKopSurat()}<div class="header"><h2>HASIL UJIAN CBT</h2></div><div class="clearfix"><div class="score-box"><h3>NILAI AKHIR</h3><div class="score">${d.nilai}</div></div><table style="font-size:15px;margin-bottom:20px"><tr><td width="150"><strong>Nama Peserta</strong></td><td>: ${d.nama}</td></tr><tr><td><strong>Mata Pelajaran</strong></td><td>: ${d.ujian}</td></tr></table></div><h4>Rincian Skor</h4>${detailHtml}<div class="footer"><div><p>${new Date().toLocaleDateString('id-ID')}</p><p style="margin-bottom:70px">Pengawas</p><p>_______________________</p></div></div><script>window.onload=function(){window.print()}<\/script></body></html>`);
+    printWindow.document.close();
+}
+
+function deleteResult(rid) { Swal.fire({title:'Hapus & Reset?', text:'Nilai dihapus & siswa bisa ujian lagi.', icon:'warning', showCancelButton:true, confirmButtonColor:'#d33'}).then(async r=>{ if(r.isConfirmed) { showLoad(true); const res = await fetchAPI({ action: 'adminDeleteResult', id: rid }); showLoad(false); if(res.status==='success'){ Swal.fire('Berhasil',res.msg,'success'); loadPage('hasil-rekap'); } else Swal.fire('Gagal',res.msg,'error'); } }); }
+
+async function renderMonitoring(){ showLoad(true); const r = await fetchAPI({action: 'getDashboardData'}); showLoad(false); let h=`<div class="row g-2 mb-3"><div class="col-md-5"><select id="mon-sel" class="form-select" onchange="startMon()"><option value="">Pilih Ujian...</option>`; r.data.exams.forEach(e=>h+=`<option value="${e.ExamID}">${e.Judul}</option>`); h+=`</select></div><div class="col-md-5"><input type="text" id="mon-search" class="form-control" placeholder="Cari..." onkeyup="filterTable('tbl-mon', this.value)"></div><div class="col-md-2"></div></div><div id="mon-area" class="bg-white p-3 rounded shadow-sm" style="min-height:200px">Silakan pilih ujian.</div>`; $('#content-area').html(h); }
+function startMon(){ const id=$('#mon-sel').val(); if(id){ fetchMon(id); clearInterval(monitorInterval); monitorInterval=setInterval(()=>fetchMon(id),10000); } else $('#mon-area').empty(); }
+async function fetchMon(id){ const r = await fetchAPI({ action: 'getLiveMonitoring', examId: id }); if(r.status==='error') { $('#mon-area').html(`<div class="alert alert-warning">${r.msg}</div>`); return; } let h=`<table id="tbl-mon" class="table table-hover align-middle"><thead><tr class="table-light"><th>Nama</th><th>Progress</th><th>Status</th><th>Aksi</th></tr></thead><tbody>`; r.data.forEach(d=>{ const p=Math.round((d.terjawab/d.total)*100)||0; h+=`<tr data-uid="${d.id}" data-nama="${d.nama}"><td><div class="fw-bold">${d.nama}</div><small class="text-muted">${d.kelas}</small></td><td><div class="progress" style="height:20px"><div class="progress-bar bg-success" style="width:${p}%">${d.terjawab}/${d.total}</div></div></td><td>${d.status==='Online'?'<span class="badge bg-success">ON</span>':'<span class="badge bg-secondary">OFF</span>'}</td><td><button class="btn btn-sm btn-outline-danger" onclick="triggerReset('${d.id}', '${d.nama}')">Reset</button></td></tr>` }); $('#content-area').html(h+'</tbody></table>'); const cur=$('#mon-search').val(); if(cur) filterTable('tbl-mon', cur); }
+function triggerReset(sId, sName) { const eId = $('#mon-sel').val(); if(!sId || !eId) return; Swal.fire({ title: 'Reset Siswa Ini?', text: `${sName} akan dikeluarkan dan harus login ulang.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Reset!' }).then(async r => { if(r.isConfirmed) { Swal.fire({title: 'Memproses...', allowOutsideClick: false, didOpen: () => Swal.showLoading() }); const res = await fetchAPI({ action: 'teacherResetStatus', siswaId: sId, examId: eId }); if(res.status === 'success') { Swal.fire('Berhasil', res.msg, 'success'); fetchMon(eId); } else { Swal.fire('Gagal', res.msg, 'error'); } } }); }
+function filterTable(tid, q) { const f=q.toLowerCase(); $(`#${tid} tbody tr`).each(function(){ const t=$(this).text().toLowerCase(); $(this).toggle(t.indexOf(f)>-1); }); }
+
+</script>
+</body>
+</html>
